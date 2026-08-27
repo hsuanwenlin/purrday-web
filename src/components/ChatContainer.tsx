@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react"
 import { Send, Image as ImageIcon, X } from "lucide-react"
 import { compressImage } from "../utils/imageUtils"
 import { analyzeDiary } from "../services/geminiService"
-import { auth, saveDiaryEntry } from "../services/firebase" // 👈 1. 引入 Firebase Auth 與寫入函式
+import { auth, saveDiaryEntry } from "../services/firebase"
 
 type Message = {
   id: number
@@ -33,6 +33,14 @@ const INITIAL_MESSAGES: Message[] = [
   { id: 1, role: "cat", text: "喵～歡迎回來！今天有拍什麼好看的照片要跟我分享嗎？" },
 ]
 
+// 🎯 Day 26：輪播等待文案清單
+const WAITING_TEXTS = [
+  "貓咪正在認真思考中...🐾",
+  "正在聞這段日記的味道...🐟",
+  "喵喵正在組織可愛的語言...✨",
+  "貓咪搖了搖尾巴，馬上就好囉...🌿",
+]
+
 function CatAvatar({ size = "md" }: { size?: "sm" | "md" }) {
   const dimensions = size === "sm" ? "h-8 w-8 text-xs" : "h-10 w-10 sm:h-11 sm:w-11 text-sm"
   return (
@@ -42,14 +50,34 @@ function CatAvatar({ size = "md" }: { size?: "sm" | "md" }) {
   )
 }
 
-function TypingIndicator() {
+// 🎯 Day 26：整合骨架屏 (Skeleton UI) 與動態文案
+function CatSkeletonLoader() {
+  const [textIndex, setTextIndex] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTextIndex((prev) => (prev + 1) % WAITING_TEXTS.length)
+    }, 1800)
+    return () => clearInterval(timer)
+  }, [])
+
   return (
-    <div className="flex items-end gap-2 transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom-2">
+    <div className="flex items-start gap-2.5 transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom-2">
       <CatAvatar size="sm" />
-      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md bg-rose-50 border border-rose-100 px-4 py-3 shadow-sm">
-        <span className="h-2 w-2 rounded-full bg-rose-400 animate-bounce [animation-delay:-0.3s]" />
-        <span className="h-2 w-2 rounded-full bg-rose-400 animate-bounce [animation-delay:-0.15s]" />
-        <span className="h-2 w-2 rounded-full bg-rose-400 animate-bounce" />
+      <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-tl-sm bg-rose-50/90 border border-rose-200/70 p-3.5 shadow-sm space-y-2.5">
+        {/* 動態輪播文案與跳動點點 */}
+        <div className="flex items-center gap-2 text-xs text-rose-500 font-medium">
+          <span>{WAITING_TEXTS[textIndex]}</span>
+          <div className="flex gap-1 items-center">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-dot-1 inline-block" />
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-dot-2 inline-block" />
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-dot-3 inline-block" />
+          </div>
+        </div>
+
+        {/* 骨架屏長條占位微光 (Shimmer) */}
+        <div className="h-3 w-44 sm:w-56 rounded-md animate-shimmer" />
+        <div className="h-3 w-28 sm:w-36 rounded-md animate-shimmer" />
       </div>
     </div>
   )
@@ -62,7 +90,7 @@ export default function ChatContainer() {
   const [isLoading, setIsLoading] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -106,13 +134,12 @@ export default function ChatContainer() {
     if (file) handleFileProcess(file)
   }
 
-  // 🎯 多模態送出邏輯 + 雲端 Firestore 儲存
   const handleSend = async () => {
     const trimmed = input.trim()
     if ((!trimmed && !selectedImage) || isLoading) return
 
     const currentMood = mood
-    const currentImage = selectedImage // 先把當前圖片暫存起來
+    const currentImage = selectedImage
     const userMessage: Message = {
       id: Date.now(),
       role: "user",
@@ -126,9 +153,8 @@ export default function ChatContainer() {
     setIsLoading(true)
 
     try {
-      // 🎯 1. 取得 Gemini 分析結果
       const result = await analyzeDiary(trimmed, currentMood, currentImage)
-      
+
       const catReply: Message = {
         id: Date.now() + 1,
         role: "cat",
@@ -136,7 +162,6 @@ export default function ChatContainer() {
       }
       setMessages((prev) => [...prev, catReply])
 
-      // 🎯 2. 自動非同步寫入雲端 Firestore
       if (auth.currentUser) {
         await saveDiaryEntry(auth.currentUser.uid, {
           userText: trimmed,
@@ -210,10 +235,12 @@ export default function ChatContainer() {
             </div>
           ),
         )}
-        {isLoading && <TypingIndicator />}
+
+        {/* 🎯 骨架屏：在等待 API 回傳時渲染 */}
+        {isLoading && <CatSkeletonLoader />}
       </div>
 
-      {/* 情緒選擇器 */}
+      {/* 情緒選擇器（Loading 時禁用點擊，防重複干擾） */}
       <div className="border-t border-rose-100/60 bg-white/70 backdrop-blur px-2.5 sm:px-4 py-2 sm:py-3 shrink-0">
         <p className="mb-1.5 text-[11px] sm:text-xs text-stone-500 font-medium">今天的心情如何？</p>
         <div className="flex items-center justify-between gap-1 sm:gap-1.5">
@@ -221,8 +248,9 @@ export default function ChatContainer() {
             <button
               key={item.key}
               type="button"
+              disabled={isLoading}
               onClick={() => setMood(mood === item.key ? null : item.key)}
-              className={`flex flex-1 flex-col items-center gap-0.5 sm:gap-1 rounded-xl border px-0.5 py-1.5 sm:px-1 sm:py-2 text-[10px] sm:text-xs font-medium transition-all hover:-translate-y-0.5 active:scale-95 ${
+              className={`flex flex-1 flex-col items-center gap-0.5 sm:gap-1 rounded-xl border px-0.5 py-1.5 sm:px-1 sm:py-2 text-[10px] sm:text-xs font-medium transition-all hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${
                 mood === item.key ? `${item.activeClass} shadow-sm` : `${item.bgClass} ${item.borderClass} text-stone-600`
               }`}
             >
@@ -240,8 +268,9 @@ export default function ChatContainer() {
             <img src={selectedImage} alt="預覽縮圖" className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-cover border border-rose-200 shadow-sm" />
             <button
               type="button"
+              disabled={isLoading}
               onClick={() => setSelectedImage(null)}
-              className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-stone-700 text-white hover:bg-stone-900"
+              className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-stone-700 text-white hover:bg-stone-900 disabled:opacity-50"
             >
               <X className="h-3 w-3" />
             </button>
@@ -249,20 +278,22 @@ export default function ChatContainer() {
         </div>
       )}
 
-      {/* 底部輸入欄 */}
+      {/* 底部輸入欄（Loading 時禁止重複提交） */}
       <div className="flex items-center gap-2 bg-white/90 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shrink-0">
         <input
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
           accept="image/jpeg,image/png,image/webp"
+          disabled={isLoading}
           className="hidden"
         />
 
         <button
           type="button"
+          disabled={isLoading}
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full border border-rose-200/80 bg-stone-50/50 text-stone-500 hover:bg-rose-50 hover:text-rose-500 transition-all"
+          className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full border border-rose-200/80 bg-stone-50/50 text-stone-500 hover:bg-rose-50 hover:text-rose-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5" />
         </button>
@@ -270,17 +301,18 @@ export default function ChatContainer() {
         <input
           type="text"
           value={input}
+          disabled={isLoading}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="跟喵喵說點什麼吧…"
-          className="flex-1 rounded-full border border-rose-200/80 bg-stone-50/50 px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-stone-800 outline-none placeholder:text-stone-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-200/50"
+          placeholder={isLoading ? "貓咪正在回覆中，請稍候..." : "跟喵喵說點什麼吧…"}
+          className="flex-1 rounded-full border border-rose-200/80 bg-stone-50/50 px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-stone-800 outline-none placeholder:text-stone-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-200/50 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed"
         />
 
         <button
           type="button"
           onClick={handleSend}
           disabled={(!input.trim() && !selectedImage) || isLoading}
-          className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-rose-400 text-white shadow-sm transition-all hover:bg-rose-500 active:scale-95 disabled:opacity-40"
+          className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-rose-400 text-white shadow-sm transition-all hover:bg-rose-500 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Send className="h-4 w-4" />
         </button>

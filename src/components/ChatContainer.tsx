@@ -33,7 +33,7 @@ const INITIAL_MESSAGES: Message[] = [
   { id: 1, role: "cat", text: "喵～歡迎回來！今天有拍什麼好看的照片要跟我分享嗎？" },
 ]
 
-// 🎯 Day 26：輪播等待文案清單
+// 🎯 輪播等待文案清單
 const WAITING_TEXTS = [
   "貓咪正在認真思考中...🐾",
   "正在聞這段日記的味道...🐟",
@@ -50,7 +50,7 @@ function CatAvatar({ size = "md" }: { size?: "sm" | "md" }) {
   )
 }
 
-// 🎯 Day 26：整合骨架屏 (Skeleton UI) 與動態文案
+// 🎯 Day 26 骨架屏 (Skeleton UI)
 function CatSkeletonLoader() {
   const [textIndex, setTextIndex] = useState(0)
 
@@ -219,7 +219,8 @@ export default function ChatContainer() {
         {messages.map((message) =>
           message.role === "user" ? (
             <div key={message.id} className="flex justify-end transition-all duration-300 animate-in fade-in slide-in-from-bottom-2">
-              <div className="max-w-[80%] sm:max-w-[75%] rounded-2xl rounded-br-md bg-stone-200/70 border border-stone-200 p-2.5 text-xs sm:text-sm text-stone-800 shadow-sm">
+              {/* 🎯 行動端防破版：加入 break-words 與 break-all */}
+              <div className="max-w-[80%] sm:max-w-[75%] rounded-2xl rounded-br-md bg-stone-200/70 border border-stone-200 p-2.5 text-xs sm:text-sm text-stone-800 shadow-sm break-words break-all">
                 {message.image && (
                   <img src={message.image} alt="使用者上傳" className="mb-2 max-h-40 sm:max-h-48 rounded-xl object-cover w-full" />
                 )}
@@ -229,18 +230,19 @@ export default function ChatContainer() {
           ) : (
             <div key={message.id} className="flex items-end gap-2 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2">
               <CatAvatar size="sm" />
-              <div className="max-w-[80%] sm:max-w-[75%] rounded-2xl rounded-bl-md bg-rose-50 border border-rose-100 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-stone-800 shadow-sm whitespace-pre-wrap">
+              {/* 🎯 行動端防破版：加入 break-words 與 break-all */}
+              <div className="max-w-[80%] sm:max-w-[75%] rounded-2xl rounded-bl-md bg-rose-50 border border-rose-100 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-stone-800 shadow-sm whitespace-pre-wrap break-words break-all">
                 {message.text}
               </div>
             </div>
           ),
         )}
 
-        {/* 🎯 骨架屏：在等待 API 回傳時渲染 */}
+        {/* 骨架屏 */}
         {isLoading && <CatSkeletonLoader />}
       </div>
 
-      {/* 情緒選擇器（Loading 時禁用點擊，防重複干擾） */}
+      {/* 情緒選擇器 */}
       <div className="border-t border-rose-100/60 bg-white/70 backdrop-blur px-2.5 sm:px-4 py-2 sm:py-3 shrink-0">
         <p className="mb-1.5 text-[11px] sm:text-xs text-stone-500 font-medium">今天的心情如何？</p>
         <div className="flex items-center justify-between gap-1 sm:gap-1.5">
@@ -278,8 +280,8 @@ export default function ChatContainer() {
         </div>
       )}
 
-      {/* 底部輸入欄（Loading 時禁止重複提交） */}
-      <div className="flex items-center gap-2 bg-white/90 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shrink-0">
+      {/* 底部輸入欄：支援 iOS 底部安全區域 */}
+      <div className="flex items-center gap-2 bg-white/90 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shrink-0 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
         <input
           type="file"
           ref={fileInputRef}
@@ -298,6 +300,7 @@ export default function ChatContainer() {
           <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5" />
         </button>
 
+        {/* 🎯 關鍵修改：text-base sm:text-sm（手機端維持 16px 避免 Safari 自動縮放畫面） */}
         <input
           type="text"
           value={input}
@@ -305,7 +308,7 @@ export default function ChatContainer() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={isLoading ? "貓咪正在回覆中，請稍候..." : "跟喵喵說點什麼吧…"}
-          className="flex-1 rounded-full border border-rose-200/80 bg-stone-50/50 px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-stone-800 outline-none placeholder:text-stone-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-200/50 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed"
+          className="flex-1 rounded-full border border-rose-200/80 bg-stone-50/50 px-3.5 py-2 sm:py-2.5 text-base sm:text-sm text-stone-800 outline-none placeholder:text-stone-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-200/50 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed"
         />
 
         <button
